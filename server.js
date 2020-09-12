@@ -7,6 +7,7 @@ const hostname = "127.0.0.1"
 const port = 3000
 
 const searchLevel = 3
+const amountOfChildren = 3
 
 function uniq(a) {
 	return a.sort().filter(function (item, pos, ary) {
@@ -28,7 +29,6 @@ async function search(site, level = levels, res = null) {
 		emails = []
 
 	try {
-		emails = []
 		response = await fetch(site)
 		html = await response.text()
 	} catch (error) {
@@ -46,20 +46,25 @@ async function search(site, level = levels, res = null) {
 		else return domain + "/" + i
 	})
 
-	console.log("links", otherSites)
+	//console.log("links", otherSites)
 
-	if (level - 1) {
+	if (level - 1 > 0 && otherSites) {
 		let promises = []
-		for (let i = 0; i < otherSites.length && i < 10; i++)
+		for (let i = 0; i < otherSites.length && i < amountOfChildren; i++)
 			promises.push(search(otherSites[i], level - 1))
 
-		Promise.all(promises).then((values) => {
-			console.log(values)
+		return await Promise.all(promises).then((values) => {
+			console.log("Values:", values)
 
 			for (let i of values) {
 				console.log(i)
 				emails = emails.concat(i)
-				console.log(emails)
+				console.log(
+					"Emails, on level:",
+					level,
+					",emails:",
+					emails.length
+				)
 			}
 
 			if (res) respondWithEmails(emails, res)
@@ -75,7 +80,8 @@ function respondWithEmails(emails, res = null) {
 	if (!res) return
 
 	emails = uniq(emails)
-	console.log("emails", emails)
+	console.log("Response:", emails)
+	console.error("END")
 	res.write("emails: " + emails)
 	res.end()
 }
