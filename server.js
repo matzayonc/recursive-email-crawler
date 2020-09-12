@@ -6,8 +6,8 @@ const fetch = require("node-fetch")
 const hostname = "127.0.0.1"
 const port = 3000
 
-const searchLevel = 3
-const amountOfChildren = 3
+const searchLevel = 4
+const amountOfChildren = 10
 
 function uniq(a) {
 	return a.sort().filter(function (item, pos, ary) {
@@ -16,37 +16,33 @@ function uniq(a) {
 }
 
 async function search(site, level = levels, res = null) {
-	if (!site) return []
+	if (!site) return s
 	console.log("start search in", site)
 
 	if (!/http[s]?:\/\//.test(site)) site = "http://" + site
+	let s = { emails: [], sites: [] }
+	s.sites.push(site)
+	if (!site) return s
 
 	let domain = site.match(/http[s]?:\/\/[^\/]*/)[0]
-	console.log("domain:", domain, "for:", site)
 
-	let response,
-		html,
-		emails = []
+	let response, html
 
 	try {
 		response = await fetch(site)
 		html = await response.text()
-	} catch (error) {
-		console.error("Error while fetching:", site)
-		return []
+	} catch (err) {
+		console.error("Error while fetching:", site, ":", err)
+		return s
 	}
 
-	//console.log(html)
-
-	emails = emails.concat(findEmails(html))
+	s.emails = s.emails.concat(findEmails(html))
 	let otherSites = findLinks(html)
 	otherSites = otherSites.map((i) => {
 		if (i[0] == "/") return domain + i
 		else if (/http[s]?:\/\//.test(i)) return i
 		else return domain + "/" + i
 	})
-
-	//console.log("links", otherSites)
 
 	if (level - 1 > 0 && otherSites) {
 		let promises = []
@@ -58,31 +54,32 @@ async function search(site, level = levels, res = null) {
 
 			for (let i of values) {
 				console.log(i)
-				emails = emails.concat(i)
-				console.log(
-					"Emails, on level:",
-					level,
-					",emails:",
-					emails.length
-				)
+				s.emails = s.emails.concat(i.emails)
+				s.sites = s.sites.concat(i.sites)
 			}
 
-			if (res) respondWithEmails(emails, res)
-			return emails
+			if (res) respondWithEmails(s.emails, s.sites, res)
+			return s
 		})
 	} else {
-		respondWithEmails(emails, res)
-		return emails
+		respondWithEmails(s.emails, s.sites, res)
+		return s
 	}
 }
 
-function respondWithEmails(emails, res = null) {
+function respondWithEmails(emails, sites, res = null) {
 	if (!res) return
 
 	emails = uniq(emails)
 	console.log("Response:", emails)
-	console.error("END")
-	res.write("emails: " + emails)
+
+	let html = "<h3>Znalezione adresy email:</h3>"
+	for (let i of emails) html += i + "<br />"
+
+	html += "<h4>Sprawdzone strony:</h4>"
+	for (let i of sites) html += i + "<br />"
+
+	res.write(html)
 	res.end()
 }
 
@@ -91,11 +88,8 @@ function findEmails(str) {
 }
 function findLinks(str) {
 	let links = [...str.matchAll(/<a\shref=\"[^#"\.][^\"]+/g)]
-	//console.log(links)
 	return links.map((i) => (i = i[0].substr(9)))
 }
-
-function findWebsites(str) {}
 
 const server = http.createServer((req, res) => {
 	var q = url.parse(req.url, true)
@@ -113,7 +107,7 @@ const server = http.createServer((req, res) => {
 
 		case "/search":
 			let site = q.query.website
-			res.writeHead(200, { "Content-Type": "text/plain" })
+			res.writeHead(200, { "Content-Type": "text/html" })
 			search(site, searchLevel, res)
 	}
 })
