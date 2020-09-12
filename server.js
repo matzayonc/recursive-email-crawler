@@ -1,14 +1,47 @@
 const http = require("http")
 const fs = require("fs")
-var url = require("url")
+const url = require("url")
+const fetch = require("node-fetch")
 
 const hostname = "127.0.0.1"
 const port = 3000
 
-function search(req) {
-	let site = req.query.website
-	return "erw"
+async function search(site, res = null) {
+	let emails = []
+	let response = await fetch("http://" + site)
+	let html = await response.text()
+	console.log(html)
+
+	emails = emails.concat(findEmails(html))
+
+	/*
+	fetch("http://" + site)
+		.then((res) => res.text())
+		.then((body) =>
+			console.log(
+				body +
+					"\n\nemails: " +
+					findEmails(body) +
+					"\n\nlinks: " +
+					findLinks(body)
+			)
+		)*/
+	if (res) {
+		res.write("emails: " + emails)
+		res.end()
+	}
+	return emails
 }
+
+function findEmails(str) {
+	return str.match(/\w+\@\w+\.\w+/)
+}
+function findLinks(str) {
+	let links = str.match(/<a\shref=\"[^\"]+/)
+	return links.map((i) => (i = i.substr(9)))
+}
+
+function findWebsites(str) {}
 
 const server = http.createServer((req, res) => {
 	var q = url.parse(req.url, true)
@@ -25,9 +58,9 @@ const server = http.createServer((req, res) => {
 			break
 
 		case "/search":
-			res.writeHead(200, { "Content-Type": "text/javascript" })
-			res.write(search(url.parse(req.url, true)))
-			res.end()
+			let site = q.query.website
+			res.writeHead(200, { "Content-Type": "text/plain" })
+			search(site, res)
 
 		/*
 		default:
